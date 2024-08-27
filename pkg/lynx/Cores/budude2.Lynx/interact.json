@@ -78,6 +78,58 @@
           { "name": "160%", "value": "0x40" },
           { "name": "200%", "value": "0x60" }
         ]
+      },
+      {
+        "name": "Flickerblend",
+        "id": 1007,
+        "type": "list",
+        "enabled": true,
+        "persist": true,
+        "address":    "0xF2000000",
+        "mask":       "0xFFFFFE7F",
+        "defaultval": 1,
+        "options": [
+          { "name": "Off",      "value": "0x00" },
+          { "name": "2 Frames", "value": "0x80" },
+          { "name": "3 Frames", "value": "0x100" }
+        ]
+      },
+      {
+        "name": "Sync 60 Hz",
+        "id": 1008,
+        "type": "check",
+        "enabled": true,
+        "persist": true,
+        "address":    "0xF2000000",
+        "defaultval": 0,
+        "mask":       "0xFFFFFDFF",
+        "value":      "0x00000200"
+      },
+      {
+        "name": "Video Timing for YC",
+        "id": 1009,
+        "type": "check",
+        "enabled": true,
+        "persist": true,
+        "address":    "0xF2000000",
+        "defaultval": 0,
+        "mask":       "0xFFFFFBFF",
+        "value":      "0x00000400"
+      },
+      {
+        "name": "Orientation",
+        "id": 1010,
+        "type": "list",
+        "enabled": true,
+        "persist": true,
+        "address":    "0xF2000000",
+        "mask":       "0xFFFFE7FF",
+        "defaultval": 1,
+        "options": [
+          { "name": "Horz",    "value": "0x0000" },
+          { "name": "Vert",    "value": "0x0800" },
+          { "name": "Vert180", "value": "0x1000" }
+        ]
       }
     ],
     "messages": []
