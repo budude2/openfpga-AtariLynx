@@ -318,10 +318,10 @@ wire     [31:0] rtc_date_bcd;
 wire     [31:0] rtc_time_bcd;
 wire            rtc_valid;
 
-wire            savestate_supported   = 1;
-wire    [31:0]  savestate_addr        = 32'h40000000;
-wire    [31:0]  savestate_size        = 49968 + cart_ram_size_bytes; // 32768 + 16384 + 160 + 128 + 528 + cart_ram_size_bytes
-wire    [31:0]  savestate_maxloadsize = savestate_size;
+wire            savestate_supported   = 0;
+wire    [31:0]  savestate_addr        = 0;
+wire    [31:0]  savestate_size        = 0;
+wire    [31:0]  savestate_maxloadsize = 0;
 
 wire            savestate_start;
 wire            savestate_start_ack;
@@ -486,7 +486,6 @@ always_comb begin
   endcase
 end
 
-reg [31:0] boot_settings = 32'h0;
 reg [31:0] run_settings  = 32'h0;
 logic [31:0] int_bridge_read_data;
 
@@ -496,7 +495,6 @@ always_ff @(posedge clk_74a) begin
   if(bridge_wr) begin
     case (bridge_addr)
       32'hF0000000: begin /*         RESET ONLY          */ reset_timer <= 1; end //! Reset Core Command
-      32'hF1000000: begin boot_settings  <= bridge_wr_data; reset_timer <= 1; end //! System Settings
       32'hF2000000: begin run_settings   <= bridge_wr_data;                   end //! Runtime settings
     endcase
   end
@@ -521,24 +519,26 @@ synch_3 #(.WIDTH(32)) s04 (cont1_key,       cont1_key_s,        clk_sys);
 synch_3 #(.WIDTH(32)) s05 (cont2_key,       cont2_key_s,        clk_sys);
 synch_3 #(.WIDTH(32)) s06 (cont3_key,       cont3_key_s,        clk_sys);
 synch_3 #(.WIDTH(32)) s07 (cont4_key,       cont4_key_s,        clk_sys);
-synch_3 #(.WIDTH(32)) s08 (boot_settings,   boot_settings_s,    clk_sys);
 synch_3 #(.WIDTH(32)) s09 (run_settings,    run_settings_s,     clk_sys);
 
-logic sgb_en, rumble_en, originalcolors, ff_snd_en, ff_en, sgb_border_en, gba_en;
-logic [1:0] tint;
+logic turbo_en, fps_overlay, ff_snd_en, ff_en, buff_vid, 60hz_sync, yc_timing, 240p_en;
+logic [1:0] speed_select, flickerblend, orient_sel;
+logic [3:0] hshift_val, vshift_val
 
 always_comb begin
-  // These settings trigger a reset
-  sgb_en         = boot_settings_s[0];
-  gba_en         = boot_settings_s[1];
-
-  // These settings don't
-  rumble_en      = run_settings_s[0];
-  originalcolors = run_settings_s[1];
+  turbo_en       = run_settings_s[0];
+  fps_overlay    = run_settings_s[1];
   ff_snd_en      = run_settings_s[2];
   ff_en          = run_settings_s[3];
-  sgb_border_en  = run_settings_s[4];
-  tint           = run_settings_s[6:5];
+  buff_vid       = run_settings_s[4];
+  speed_select   = run_settings_s[6:5];
+  flickerblend   = run_settings_s[8:7];
+  60hz_sync      = run_settings_s[9];
+  yc_timing      = run_settings_s[10];
+  orient_sel     = run_settings_s[12:11];  
+  hshift_val     = run_settings_s[16:13];
+  vshift_val     = run_settings_s[20:17];
+  240p_en        = run_settings_s[21];
 end
 
 mf_pllbase mp1
@@ -586,8 +586,8 @@ wire cart_rd;
 wire cart_wr;
 reg cart_ready = 0;
 
-wire cart_download = ioctl_download && (filetype == 8'h01 || filetype == 8'h41 || filetype == 8'h80);
-wire bios_download = ioctl_download && (filetype == 8'h00);
+wire cart_download = ioctl_download && (dataslot_requestwrite_id == 8'h01);
+wire bios_download = ioctl_download && (dataslot_requestwrite_id == 8'h00);
 
 wire sdram_ack;
 
@@ -661,11 +661,11 @@ end
 wire [15:0] Lynx_AUDIO_L;
 wire [15:0] Lynx_AUDIO_R;
 
-wire reset = (RESET | status[0] | buttons[1] | cart_download);
+wire reset = (RESET | sreset_n_s | cart_download);
 
 reg paused;
 always_ff @(posedge clk_sys) begin
-   paused <= (syncpaused || (status[26] && OSD_STATUS)) && ~status[27]; // no pause when rewind capture is on
+   paused <= syncpaused; // no pause when rewind capture is on
 end
 
 reg [8:0]  bios_wraddr;
@@ -691,8 +691,8 @@ end
 
 LynxTop LynxTop (
   .clk              ( clk_sys),
-  .reset_in       ( reset  ),
-  .pause_in       ( paused ),
+  .reset_in         ( reset  ),
+  .pause_in         ( paused ),
    
   // rom
   .rom_addr         ( rom_addr ),
@@ -716,25 +716,25 @@ LynxTop LynxTop (
   .pixel_out_we     (pixel_we),          // new pixel for framebuffer
       
   // audio 
-  .audio_l        (Lynx_AUDIO_L),
-  .audio_r        (Lynx_AUDIO_R),
+  .audio_l          (Lynx_AUDIO_L),
+  .audio_r          (Lynx_AUDIO_R),
   
   //settings
   .fastforward      ( fast_forward ),
-  .turbo            ( status[9]    ),
-  .speedselect      ( status[33:32]),
-  .fpsoverlay_on    ( status[12]   ),
+  .turbo            ( turbo_en    ),
+  .speedselect      ( speed_select ),
+  .fpsoverlay_on    ( fps_overlay   ),
    
   // joystick
-  .JoyUP            ((orientation == 2) ? joystick_0[1] : (orientation == 1) ? joystick_0[0] : joystick_0[3]),
-  .JoyDown          ((orientation == 2) ? joystick_0[0] : (orientation == 1) ? joystick_0[1] : joystick_0[2]),
-  .JoyLeft          ((orientation == 2) ? joystick_0[2] : (orientation == 1) ? joystick_0[3] : joystick_0[1]),
-  .JoyRight         ((orientation == 2) ? joystick_0[3] : (orientation == 1) ? joystick_0[2] : joystick_0[0]),
-  .Option1          (joystick_0[6]),
-  .Option2          (joystick_0[7]),
-  .KeyB             (joystick_0[5]),
-  .KeyA             (joystick_0[4]),
-  .KeyPause         (joystick_0[8]),
+  .JoyUP            ((orientation == 2) ? cont1_key_s[1] : (orientation == 1) ? cont1_key_s[0] : joystick_0[3]),
+  .JoyDown          ((orientation == 2) ? cont1_key_s[0] : (orientation == 1) ? cont1_key_s[1] : joystick_0[2]),
+  .JoyLeft          ((orientation == 2) ? cont1_key_s[2] : (orientation == 1) ? cont1_key_s[3] : joystick_0[1]),
+  .JoyRight         ((orientation == 2) ? cont1_key_s[3] : (orientation == 1) ? cont1_key_s[2] : joystick_0[0]),
+  .Option1          (cont1_key_s[6]),
+  .Option2          (cont1_key_s[7]),
+  .KeyB             (cont1_key_s[5]),
+  .KeyA             (cont1_key_s[4]),
+  .KeyPause         (cont1_key_s[8]),
    
   // savestates
   .increaseSSHeaderCount(0),
@@ -770,7 +770,7 @@ wire [13:0] pixel_addr;
 wire [11:0] pixel_data;
 wire        pixel_we;
 
-wire buffervideo = status[5] | status[31]; // OSD option for buffer or flickerblend on
+wire buffervideo = buff_vid | flickerblend[8]; // OSD option for buffer or flickerblend on
 
 reg [11:0] vram1[16320];
 reg [11:0] vram2[16320];
@@ -804,7 +804,7 @@ always @(posedge clk_sys) begin
    
    if (y > 150) begin
       syncpaused <= 0;
-   end else if (status[24] && pixel_we && pixel_addr == 16319) begin
+   end else if (60hz_sync && pixel_we && pixel_addr == 16319) begin
       syncpaused <= 1;
    end
 
@@ -869,8 +869,8 @@ reg evenline;
 reg [1:0] video_status;
 reg new_vmode = 0;
 always @(posedge clk_sys) begin
-    if (video_status != status[45]) begin
-        video_status <= status[45];
+    if (video_status != yc_timing) begin
+        video_status <= yc_timing;
         new_vmode <= ~new_vmode;
     end
 end
@@ -883,11 +883,11 @@ always @(posedge CLK_VIDEO) begin
   if(!div) begin
     ce_pix <= 1;
 
-      if (status[31:30] == 0) begin // flickerblend off
+      if (flickerblend == 0) begin // flickerblend off
          r <= {rgb_now[11:8], rgb_now[11:8]};
          g <= {rgb_now[7:4] , rgb_now[7:4] };
          b <= {rgb_now[3:0] , rgb_now[3:0] };
-      end else if (status[31:30] == 1) begin // flickerblend 2 frames
+      end else if (flickerblend == 1) begin // flickerblend 2 frames
          r <= {r2_5, r2_5[4:2]};
          g <= {g2_5, g2_5[4:2]};
          b <= {b2_5, b2_5[4:2]};
@@ -969,34 +969,111 @@ always @(posedge CLK_VIDEO) begin
             buffercnt_read <= buffercnt_readnext;
             buffercnt_last <= buffercnt_read;
             
-            orientation <= status[11:10];
-            HShift      <= status[19:16] + HShiftHFreqMode;
-            VShift      <= status[23:20] - VShiftHFreqMode;
-            HShiftHFreqMode <= (status[45] ? 4'd7 : 4'd0); // Screen Adjust when Y/C Selected
-            VShiftHFreqMode <= (status[45] ? 4'd5 : 4'd0); // Screen Adjust when Y/C Selected
-            HDisplayHFreqMode <= (status[45] ? 10'd451 : 10'd444); // Change Video Timing for for Y/C Composite Video 
-            VDisplayHFreqMode <= (status[45] ? 9'd264 : 9'd269); // Change Video Timing for for Y/C Composite Video
-            if (status[15]) begin
+            orientation <= orient_sel;
+            HShift      <= hshift_val + HShiftHFreqMode;
+            VShift      <= vshift_val - VShiftHFreqMode;
+            HShiftHFreqMode <= (yc_timing ? 4'd7 : 4'd0); // Screen Adjust when Y/C Selected
+            VShiftHFreqMode <= (yc_timing ? 4'd5 : 4'd0); // Screen Adjust when Y/C Selected
+            HDisplayHFreqMode <= (yc_timing ? 10'd451 : 10'd444); // Change Video Timing for for Y/C Composite Video 
+            VDisplayHFreqMode <= (yc_timing ? 9'd264 : 9'd269); // Change Video Timing for for Y/C Composite Video
+            if (240p_en) begin
                videomode = 3; // 320*204, 60Hz
             end else begin
-               if (status[11:10] == 0) videomode = 0; // 160*102, 60Hz
-               if (status[11:10] == 1) videomode = 1; // 102*160, 60Hz
-               if (status[11:10] == 2) videomode = 2; // 102*160, 60Hz, 180 degree rotated
+               if (orient_sel == 0) videomode = 0; // 160*102, 60Hz
+               if (orient_sel == 1) videomode = 1; // 102*160, 60Hz
+               if (orient_sel == 2) videomode = 2; // 102*160, 60Hz, 180 degree rotated
             end
          end
     end
   end
 end
 
-assign VGA_F1 = 0;
-assign VGA_SL = sl[1:0];
+// Video
+reg video_de_reg;
+reg video_hs_reg;
+reg video_vs_reg;
 
-wire [2:0] scale = status[4:2];
-wire [2:0] sl = scale ? scale - 1'd1 : 3'd0;
-wire       scandoubler = (scale || forced_scandoubler);
+reg hs_prev;
+reg [2:0] hs_delay;
+reg vs_prev;
+reg de_prev;
 
-wire [7:0] r_in = r;
-wire [7:0] g_in = g;
-wire [7:0] b_in = b;
+wire de = ~(hbl || vbl);
+
+always_ff @(posedge clk_vid) begin
+  video_hs_reg  <= 0;
+  video_de_reg  <= 0;
+  video_rgb_reg <= 24'h0;
+
+  if (de) begin
+    video_de_reg  <= 1;
+
+    video_rgb_reg <= {r, g, b};
+  end else if (de_prev && ~de) begin
+    video_rgb_reg <= 24'h0;
+  end
+
+  if (hs_delay > 0) begin
+    hs_delay <= hs_delay - 3'h1;
+  end
+
+  if (hs_delay == 1) begin
+    video_hs_reg <= 1;
+  end
+
+  if (~hs_prev && hs) begin
+    // HSync went high. Delay by 3 cycles to prevent overlapping with VSync
+    hs_delay <= 7;
+  end
+
+  // Set VSync to be high for a single cycle on the rising edge of the VSync coming out of the core
+  video_vs_reg  <= ~vs_prev && vs;
+  hs_prev       <= hs;
+  vs_prev       <= vs;
+  de_prev       <= de;
+end
+
+assign video_rgb_clock    = clk_vid;
+assign video_rgb_clock_90 = clk_vid_90;
+assign video_de           = video_de_reg;
+assign video_hs           = video_hs_reg;
+assign video_vs           = video_vs_reg;
+assign video_rgb          = video_rgb_reg;
+
+///////////////////////////// Fast Forward Latch /////////////////////////////////
+
+reg fast_forward;
+reg ff_latch;
+
+wire fastforward = cont1_key_s[9] && !ioctl_download && ff_en;
+wire ff_on;
+
+always @(posedge clk_sys) begin : ffwd
+  reg last_ffw;
+  reg ff_was_held;
+  longint ff_count;
+
+  last_ffw <= fastforward;
+
+  if (fastforward)
+    ff_count <= ff_count + 1;
+
+  if (~last_ffw & fastforward) begin
+    ff_latch <= 0;
+    ff_count <= 0;
+  end
+
+  if ((last_ffw & ~fastforward)) begin // 64mhz clock, 0.2 seconds
+    ff_was_held <= 0;
+
+    if (ff_count < 6400000 && ~ff_was_held) begin
+      ff_was_held <= 1;
+      ff_latch <= 1;
+    end
+  end
+
+  fast_forward <= (fastforward | ff_latch);
+end
+
 
 endmodule
