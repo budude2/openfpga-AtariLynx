@@ -765,8 +765,8 @@ LynxTop LynxTop (
 
 wire [15:0] audio_l, audio_r;
 
-assign audio_l = (fast_forward && ff_snd_en) ? 16'd0 : Lynx_AUDIO_L;
-assign audio_r = (fast_forward && ff_snd_en) ? 16'd0 : Lynx_AUDIO_R;
+assign audio_l = (fast_forward && ~ff_snd_en) ? 16'd0 : Lynx_AUDIO_L;
+assign audio_r = (fast_forward && ~ff_snd_en) ? 16'd0 : Lynx_AUDIO_R;
 
 audio_mixer #(
   .DW     ( 16  ),
