@@ -837,7 +837,7 @@ reg  [11:0] rgb0;
 reg  [11:0] rgb1;
 reg  [11:0] rgb2;
 
-always @(posedge clk_vid) begin
+always @(posedge clk_sys) begin
    rgb0 <= vram1[px_addr];
    rgb1 <= vram2[px_addr];
    rgb2 <= vram3[px_addr];
@@ -898,7 +898,7 @@ always @(posedge clk_sys) begin
     end
 end
 
-always @(posedge clk_vid) begin
+always @(posedge clk_sys) begin
 
    if (div < 8) div <= div + 1'd1; else div <= 0; // 64mhz / 9 => 7,11Mhz Pixelclock
 
