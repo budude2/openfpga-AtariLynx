@@ -664,7 +664,7 @@ end
 wire [15:0] Lynx_AUDIO_L;
 wire [15:0] Lynx_AUDIO_R;
 
-wire reset = (~reset_n_s | ~reset_n_s | cart_download);
+wire reset = (~reset_n_s | external_reset_s | cart_download);
 
 reg paused;
 always_ff @(posedge clk_sys) begin
