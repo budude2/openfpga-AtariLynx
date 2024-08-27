@@ -477,8 +477,8 @@ end
 // add your own devices here
 always_comb begin
   casex(bridge_addr)
-    32'h2xxxxxxx: begin bridge_rd_data = save_rd_data;                end
-    32'h4xxxxxxx: begin bridge_rd_data = save_state_bridge_read_data; end
+    //32'h2xxxxxxx: begin bridge_rd_data = save_rd_data;                end
+    //32'h4xxxxxxx: begin bridge_rd_data = save_state_bridge_read_data; end
     32'hF8xxxxxx: begin bridge_rd_data = cmd_bridge_rd_data;          end
     32'hF1000000: begin bridge_rd_data = int_bridge_read_data;        end
     32'hF2000000: begin bridge_rd_data = int_bridge_read_data;        end
@@ -501,7 +501,7 @@ always_ff @(posedge clk_74a) begin
 
   if(bridge_rd) begin
     case (bridge_addr)
-      32'hF1000000: begin int_bridge_read_data  <= boot_settings;  end //! System Settings
+      //32'hF1000000: begin int_bridge_read_data  <= boot_settings;  end //! System Settings
       32'hF2000000: begin int_bridge_read_data  <= run_settings;   end //! Runtime settings
     endcase
   end
@@ -510,7 +510,7 @@ end
 logic clk_sys, clk_ram, clk_ram_90, clk_vid, clk_vid_90;
 logic pll_core_locked, pll_core_locked_s, reset_n_s, external_reset_s;
 logic [31:0] cont1_key_s, cont2_key_s, cont3_key_s, cont4_key_s;
-logic [31:0] boot_settings_s, run_settings_s;
+logic [31:0] run_settings_s;
 
 synch_3               s01 (pll_core_locked, pll_core_locked_s,  clk_ram);
 synch_3               s02 (reset_n,         reset_n_s,          clk_sys);
@@ -521,9 +521,9 @@ synch_3 #(.WIDTH(32)) s06 (cont3_key,       cont3_key_s,        clk_sys);
 synch_3 #(.WIDTH(32)) s07 (cont4_key,       cont4_key_s,        clk_sys);
 synch_3 #(.WIDTH(32)) s09 (run_settings,    run_settings_s,     clk_sys);
 
-logic turbo_en, fps_overlay, ff_snd_en, ff_en, buff_vid, 60hz_sync, yc_timing, 240p_en;
+logic turbo_en, fps_overlay, ff_snd_en, ff_en, buff_vid, sync60hz, yc_timing, en240p;
 logic [1:0] speed_select, flickerblend, orient_sel;
-logic [3:0] hshift_val, vshift_val
+logic [3:0] hshift_val, vshift_val;
 
 always_comb begin
   turbo_en       = run_settings_s[0];
@@ -533,12 +533,12 @@ always_comb begin
   buff_vid       = run_settings_s[4];
   speed_select   = run_settings_s[6:5];
   flickerblend   = run_settings_s[8:7];
-  60hz_sync      = run_settings_s[9];
+  sync60hz       = run_settings_s[9];
   yc_timing      = run_settings_s[10];
   orient_sel     = run_settings_s[12:11];  
   hshift_val     = run_settings_s[16:13];
   vshift_val     = run_settings_s[20:17];
-  240p_en        = run_settings_s[21];
+  en240p         = run_settings_s[21];
 end
 
 mf_pllbase mp1
@@ -553,6 +553,10 @@ mf_pllbase mp1
   
   .locked   ( pll_core_locked )
 );
+
+logic ioctl_wr, ioctl_wait;
+logic [24:0] ioctl_addr;
+logic [15:0] ioctl_dout;
 
 data_loader #(
   .ADDRESS_MASK_UPPER_4   ( 4'h1  ),
@@ -600,8 +604,7 @@ wire rom_ack;
 
 sdram sdram
 (
-  .*,
-  .init(~pll_locked),
+  .init(~pll_core_locked),
   .clk(clk_sys),
 
   .SDRAM_DQ(dram_dq),    // 16 bit bidirectional data bus
@@ -661,7 +664,7 @@ end
 wire [15:0] Lynx_AUDIO_L;
 wire [15:0] Lynx_AUDIO_R;
 
-wire reset = (RESET | sreset_n_s | cart_download);
+wire reset = (~reset_n_s | ~reset_n_s | cart_download);
 
 reg paused;
 always_ff @(posedge clk_sys) begin
@@ -726,10 +729,10 @@ LynxTop LynxTop (
   .fpsoverlay_on    ( fps_overlay   ),
    
   // joystick
-  .JoyUP            ((orientation == 2) ? cont1_key_s[1] : (orientation == 1) ? cont1_key_s[0] : joystick_0[3]),
-  .JoyDown          ((orientation == 2) ? cont1_key_s[0] : (orientation == 1) ? cont1_key_s[1] : joystick_0[2]),
-  .JoyLeft          ((orientation == 2) ? cont1_key_s[2] : (orientation == 1) ? cont1_key_s[3] : joystick_0[1]),
-  .JoyRight         ((orientation == 2) ? cont1_key_s[3] : (orientation == 1) ? cont1_key_s[2] : joystick_0[0]),
+  .JoyUP            ((orientation == 2) ? cont1_key_s[1] : (orientation == 1) ? cont1_key_s[0] : cont1_key_s[3]),
+  .JoyDown          ((orientation == 2) ? cont1_key_s[0] : (orientation == 1) ? cont1_key_s[1] : cont1_key_s[2]),
+  .JoyLeft          ((orientation == 2) ? cont1_key_s[2] : (orientation == 1) ? cont1_key_s[3] : cont1_key_s[1]),
+  .JoyRight         ((orientation == 2) ? cont1_key_s[3] : (orientation == 1) ? cont1_key_s[2] : cont1_key_s[0]),
   .Option1          (cont1_key_s[6]),
   .Option2          (cont1_key_s[7]),
   .KeyB             (cont1_key_s[5]),
@@ -760,9 +763,29 @@ LynxTop LynxTop (
   .cheats_active()
 );
 
-assign AUDIO_L = (fast_forward && ff_snd_en) ? 16'd0 : Lynx_AUDIO_L;
-assign AUDIO_R = (fast_forward && ff_snd_en) ? 16'd0 : Lynx_AUDIO_R;
-assign AUDIO_S = 1;
+wire [15:0] audio_l, audio_r;
+
+assign audio_l = (fast_forward && ff_snd_en) ? 16'd0 : Lynx_AUDIO_L;
+assign audio_r = (fast_forward && ff_snd_en) ? 16'd0 : Lynx_AUDIO_R;
+
+audio_mixer #(
+  .DW     ( 16  ),
+  .STEREO ( 1   )
+) audio_mixer (
+  .clk_74b      ( clk_74b     ),
+  .clk_audio    ( clk_sys     ),
+
+  .vol_att      ( 0           ),
+  .mix          ( 0           ),
+
+  .is_signed    ( 1           ),
+  .core_l       ( audio_l     ),
+  .core_r       ( audio_r     ),
+
+  .audio_mclk   ( audio_mclk  ),
+  .audio_lrck   ( audio_lrck  ),
+  .audio_dac    ( audio_dac   )
+);
 
 ////////////////////////////  VIDEO  ////////////////////////////////////
 
@@ -770,7 +793,7 @@ wire [13:0] pixel_addr;
 wire [11:0] pixel_data;
 wire        pixel_we;
 
-wire buffervideo = buff_vid | flickerblend[8]; // OSD option for buffer or flickerblend on
+wire buffervideo = buff_vid | flickerblend[1]; // OSD option for buffer or flickerblend on
 
 reg [11:0] vram1[16320];
 reg [11:0] vram2[16320];
@@ -804,7 +827,7 @@ always @(posedge clk_sys) begin
    
    if (y > 150) begin
       syncpaused <= 0;
-   end else if (60hz_sync && pixel_we && pixel_addr == 16319) begin
+   end else if (sync60hz && pixel_we && pixel_addr == 16319) begin
       syncpaused <= 1;
    end
 
@@ -814,7 +837,7 @@ reg  [11:0] rgb0;
 reg  [11:0] rgb1;
 reg  [11:0] rgb2;
 
-always @(posedge CLK_VIDEO) begin
+always @(posedge clk_vid) begin
    rgb0 <= vram1[px_addr];
    rgb1 <= vram2[px_addr];
    rgb2 <= vram3[px_addr];
@@ -875,7 +898,7 @@ always @(posedge clk_sys) begin
     end
 end
 
-always @(posedge CLK_VIDEO) begin
+always @(posedge clk_vid) begin
 
    if (div < 8) div <= div + 1'd1; else div <= 0; // 64mhz / 9 => 7,11Mhz Pixelclock
 
@@ -976,7 +999,7 @@ always @(posedge CLK_VIDEO) begin
             VShiftHFreqMode <= (yc_timing ? 4'd5 : 4'd0); // Screen Adjust when Y/C Selected
             HDisplayHFreqMode <= (yc_timing ? 10'd451 : 10'd444); // Change Video Timing for for Y/C Composite Video 
             VDisplayHFreqMode <= (yc_timing ? 9'd264 : 9'd269); // Change Video Timing for for Y/C Composite Video
-            if (240p_en) begin
+            if (en240p) begin
                videomode = 3; // 320*204, 60Hz
             end else begin
                if (orient_sel == 0) videomode = 0; // 160*102, 60Hz
@@ -992,6 +1015,7 @@ end
 reg video_de_reg;
 reg video_hs_reg;
 reg video_vs_reg;
+reg [23:0] video_rgb_reg;
 
 reg hs_prev;
 reg [2:0] hs_delay;
