@@ -1,0 +1,34 @@
+{
+  "core": {
+    "magic": "APF_VER_1",
+    "metadata": {
+      "platform_ids": ["lynx"],
+      "shortname": "Lynx",
+      "description": "Atari Lynx",
+      "author": "budude2",
+      "url": "https://github.com/budude2/openfpga-GBC",
+      "version": "1.0",
+      "date_release": "2024-08-21"
+    },
+    "framework": {
+      "target_product": "Analogue Pocket",
+      "version_required": "1.1",
+      "sleep_supported": false,
+      "dock": {
+        "supported": true,
+        "analog_output": false
+      },
+      "hardware": {
+        "link_port": false,
+        "cartridge_adapter": 0
+      }
+    },
+    "cores": [
+      {
+        "name": "default",
+        "id": 0,
+        "filename": "lynx.rbf_r"
+      }
+    ]
+  }
+}
