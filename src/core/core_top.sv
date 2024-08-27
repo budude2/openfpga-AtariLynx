@@ -729,15 +729,15 @@ LynxTop LynxTop (
   .fpsoverlay_on    ( fps_overlay   ),
    
   // joystick
-  .JoyUP            ((orientation == 2) ? cont1_key_s[1] : (orientation == 1) ? cont1_key_s[0] : cont1_key_s[3]),
-  .JoyDown          ((orientation == 2) ? cont1_key_s[0] : (orientation == 1) ? cont1_key_s[1] : cont1_key_s[2]),
-  .JoyLeft          ((orientation == 2) ? cont1_key_s[2] : (orientation == 1) ? cont1_key_s[3] : cont1_key_s[1]),
-  .JoyRight         ((orientation == 2) ? cont1_key_s[3] : (orientation == 1) ? cont1_key_s[2] : cont1_key_s[0]),
+  .JoyUP            ((orientation == 2) ? cont1_key_s[2] : (orientation == 1) ? cont1_key_s[3] : cont1_key_s[0]),
+  .JoyDown          ((orientation == 2) ? cont1_key_s[3] : (orientation == 1) ? cont1_key_s[2] : cont1_key_s[1]),
+  .JoyLeft          ((orientation == 2) ? cont1_key_s[1] : (orientation == 1) ? cont1_key_s[0] : cont1_key_s[2]),
+  .JoyRight         ((orientation == 2) ? cont1_key_s[0] : (orientation == 1) ? cont1_key_s[1] : cont1_key_s[3]),
   .Option1          (cont1_key_s[6]),
   .Option2          (cont1_key_s[7]),
   .KeyB             (cont1_key_s[5]),
   .KeyA             (cont1_key_s[4]),
-  .KeyPause         (cont1_key_s[8]),
+  .KeyPause         (cont1_key_s[15]),
    
   // savestates
   .increaseSSHeaderCount(0),
