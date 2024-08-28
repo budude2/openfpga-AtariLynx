@@ -900,14 +900,14 @@ always @(posedge clk_sys) begin
          b <= b3_div24[7:0];
       end
 
-      if (videomode == 0) begin
+      if (videomode == 0 || videomode == 1) begin
          if(x == 160)     hbl <= 1;
          if(y == 120)     vbl <= 0;
          if(y >= 120+102) vbl <= 1;
-      end else if (videomode == 1 || videomode == 2) begin
-         if(x == 102)     hbl <= 1;
-         if(y == 62)      vbl <= 0;
-         if(y >= 62+160)  vbl <= 1;
+      end else if (videomode == 2) begin
+         if(x == 160)     hbl <= 1;
+         if(y == 120)     vbl <= 0;
+         if(y >= 120+102) vbl <= 1;
       end else if (videomode == 3) begin
          if(x == 320)                     hbl <= 1;
          if(y == 40)      vbl <= 0;
@@ -932,22 +932,10 @@ always @(posedge clk_sys) begin
    
       hbl_1 <= hbl;
 
-      if (videomode == 0) begin
+      if (videomode == 0 || videomode == 1 || videomode == 2) begin
          if(vbl) px_addr <= 0;
          else begin 
             if(!hbl) px_addr <= px_addr + 1'd1;
-         end
-      end else if (videomode == 1) begin
-         if(!hbl) begin 
-            px_addr <= px_addr - 8'd160;
-         end else begin
-            px_addr <= (8'd101 * 8'd160) + (y - 6'd61);
-         end
-      end else if (videomode == 2) begin
-         if(!hbl) begin 
-            px_addr <= px_addr + 8'd160;
-         end else begin
-            px_addr <= 8'd220 - y;
          end
       end else if (videomode == 3) begin
          if(vbl) begin
@@ -972,107 +960,72 @@ always @(posedge clk_sys) begin
         buffercnt_read <= buffercnt_readnext;
         buffercnt_last <= buffercnt_read;
         
-        orientation    <= orient_sel;
+        orientation     <= orient_sel;
         
         if (en240p) begin
            videomode = 3; // 320*204, 60Hz
         end else begin
            videomode = 0;
-           //if (orient_sel == 0) videomode = 0; // 160*102, 60Hz
-           //if (orient_sel == 1) videomode = 1; // 102*160, 60Hz
-           //if (orient_sel == 2) videomode = 2; // 102*160, 60Hz, 180 degree rotated
+           if (orient_sel == 0) videomode = 0; // 160*102, 60Hz
+           if (orient_sel == 1) videomode = 1; // 102*160, 60Hz
+           if (orient_sel == 2) videomode = 2; // 102*160, 60Hz, 180 degree rotated
         end
       end
     end
   end
 end
 
-// Video
-reg video_de_reg;
-reg video_hs_reg;
-reg video_vs_reg;
-reg [23:0] video_rgb_reg;
+//! ------------------------------------------------------------------------
+//! Sync Video Output
+//! ------------------------------------------------------------------------
+reg EN_INTERLACED = 0;
 
-reg hs_prev;
-reg [2:0] hs_delay;
-reg vs_prev;
-reg de_prev;
+//--------------------------------------------------------------------------
+// APF Video Output
+//--------------------------------------------------------------------------
+wire       field,   interlaced;
+logic      hs_last, vs_last, de_last; // Sync/DE Edge Detection
+
+wire [2:0] video_preset = {1'b0, videomode};
 
 wire de = ~(hbl || vbl);
 
-always_ff @(posedge clk_vid) begin
-  video_hs_reg  <= 0;
-  video_de_reg  <= 0;
-  video_rgb_reg <= 24'h0;
-
-  if (de) begin
-    video_de_reg  <= 1;
-
-    video_rgb_reg <= {r, g, b};
-  end else if (de_prev && ~de) begin
-    video_rgb_reg <= 24'h0;
-  end
-
-  if (hs_delay > 0) begin
-    hs_delay <= hs_delay - 3'h1;
-  end
-
-  if (hs_delay == 1) begin
-    video_hs_reg <= 1;
-  end
-
-  if (~hs_prev && hs) begin
-    // HSync went high. Delay by 3 cycles to prevent overlapping with VSync
-    hs_delay <= 7;
-  end
-
-  // Set VSync to be high for a single cycle on the rising edge of the VSync coming out of the core
-  video_vs_reg  <= ~vs_prev && vs;
-  hs_prev       <= hs;
-  vs_prev       <= vs;
-  de_prev       <= de;
+always_ff @(posedge clk_vid) begin : apfVideoOutput
+    if(reset) begin
+        video_rgb <= 24'h0;
+        video_hs  <=  1'b0;
+        video_vs  <=  1'b0;
+        video_de  <=  1'b0;
+        hs_last   <=  1'b0;
+        vs_last   <=  1'b0;
+        de_last   <=  1'b0;
+    end
+    else begin
+        video_rgb <= 24'h0;
+        video_hs  <= ~hs_last && hs;
+        video_vs  <= ~vs_last && vs;
+        video_de  <= 1'b0;
+        // Handle frame feature bits during VS pulse
+        if(~vs_last && vs && EN_INTERLACED) begin
+            video_rgb <= { 20'h0, ~field, field, interlaced, 1'h0 };
+        end
+        else if(de) begin
+            video_de  <= 1'b1;
+            video_rgb <= { r, g, b };
+        end
+        // Handle end-of-line bits after the DE falling edge
+        else if(de_last && ~de) begin
+            video_rgb <= { 8'h0, video_preset, 13'h0 };
+        end
+        // Update last state registers
+        hs_last <= hs;
+        vs_last <= vs;
+        de_last <= de;
+    end
 end
 
 assign video_rgb_clock    = clk_vid;
 assign video_rgb_clock_90 = clk_vid_90;
-assign video_de           = video_de_reg;
-assign video_hs           = video_hs_reg;
-assign video_vs           = video_vs_reg;
-//assign video_rgb          = video_rgb_reg;
-
-wire [7:0] lum;
-assign lum = (21 * video_rgb_reg[23:16] + 72 * video_rgb_reg[15:8] + 7 * video_rgb_reg[7:0]) / 100;
-
-always_comb begin
-  if(~video_de_reg) begin
-    if(en240p) begin
-      video_rgb[23:13] = 3;
-      video_rgb[12:3]  = 0;
-      video_rgb[2:0]   = 0;
-    end else begin
-      if(orient_sel == 1) begin
-        video_rgb[23:13] = 1;
-        video_rgb[12:3]  = 0;
-        video_rgb[2:0]   = 0;
-      end else if(orient_sel == 2) begin
-        video_rgb[23:13] = 2;
-        video_rgb[12:3]  = 0;
-        video_rgb[2:0]   = 0;
-      end else begin
-        video_rgb[23:13] = 0;
-        video_rgb[12:3]  = 0;
-        video_rgb[2:0]   = 0;
-      end
-    end
-
-  end else begin
-    if (bw_en) begin
-      video_rgb = {lum, lum, lum};
-    end else begin
-      video_rgb = video_rgb_reg;
-    end
-  end
-end
 
 ///////////////////////////// Fast Forward Latch /////////////////////////////////
 
