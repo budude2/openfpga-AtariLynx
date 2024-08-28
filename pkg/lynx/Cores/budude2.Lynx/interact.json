@@ -106,17 +106,6 @@
         "value":      "0x00000200"
       },
       {
-        "name": "Video Timing for YC",
-        "id": 1009,
-        "type": "check",
-        "enabled": true,
-        "persist": true,
-        "address":    "0xF2000000",
-        "defaultval": 0,
-        "mask":       "0xFFFFFBFF",
-        "value":      "0x00000400"
-      },
-      {
         "name": "Orientation",
         "id": 1010,
         "type": "list",

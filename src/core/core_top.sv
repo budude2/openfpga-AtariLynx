@@ -523,7 +523,6 @@ synch_3 #(.WIDTH(32)) s09 (run_settings,    run_settings_s,     clk_sys);
 
 logic turbo_en, fps_overlay, ff_snd_en, ff_en, buff_vid, sync60hz, yc_timing, en240p;
 logic [1:0] speed_select, flickerblend, orient_sel;
-logic [3:0] hshift_val, vshift_val;
 
 always_comb begin
   turbo_en       = run_settings_s[0];
@@ -534,10 +533,7 @@ always_comb begin
   speed_select   = run_settings_s[6:5];
   flickerblend   = run_settings_s[8:7];
   sync60hz       = run_settings_s[9];
-  yc_timing      = run_settings_s[10];
-  orient_sel     = run_settings_s[12:11];  
-  hshift_val     = run_settings_s[16:13];
-  vshift_val     = run_settings_s[20:17];
+  orient_sel     = run_settings_s[12:11];
   en240p         = run_settings_s[21];
 end
 
@@ -879,24 +875,8 @@ reg [1:0] orientation;
 reg [1:0] videomode;
 reg [8:0] x,y;
 reg [3:0] div;
-reg signed [3:0] HShift;
-reg signed [3:0] VShift; 
-reg [9:0] HDisplayHFreqMode; 
-reg [8:0] VDisplayHFreqMode;
-reg signed [3:0] HShiftHFreqMode;
-reg signed [3:0] VShiftHFreqMode;  
 reg hbl_1;
 reg evenline;
-
-// If video timing changes, force mode update
-reg [1:0] video_status;
-reg new_vmode = 0;
-always @(posedge clk_sys) begin
-    if (video_status != yc_timing) begin
-        video_status <= yc_timing;
-        new_vmode <= ~new_vmode;
-    end
-end
 
 always @(posedge clk_sys) begin
 
@@ -930,21 +910,21 @@ always @(posedge clk_sys) begin
          if(y >= 62+160)  vbl <= 1;
       end else if (videomode == 3) begin
          if(x == 320)                     hbl <= 1;
-         if(y == 40+$signed(VShift))      vbl <= 0;
-         if(y >= 40+204+$signed(VShift))  vbl <= 1;
+         if(y == 40)      vbl <= 0;
+         if(y >= 40+204)  vbl <= 1;
       end
       
     if(x == 000) begin 
          hbl <= 0;
       end  
        
-    if(x == 350 + $signed(HShift)) begin
+    if(x == 350) begin
       hs <= 1;
       if(y == 1)   vs <= 1;
       if(y == 4)   vs <= 0;
     end
 
-    if(x == 350+32+$signed(HShift)) hs  <= 0;
+    if(x == 350+32) hs  <= 0;
 
   end
 
@@ -984,30 +964,25 @@ always @(posedge clk_sys) begin
       end
 
     x <= x + 1'd1;
-    if(x == HDisplayHFreqMode) begin  // (445x270 for standard video, 452x265 for improved Analog Timing for Composite)
+    if(x == 10'd444) begin  // (445x270 for standard video, 452x265 for improved Analog Timing for Composite)
       x <= 0;
       if (~&y) y <= y + 1'd1;
-      if (y >= VDisplayHFreqMode) begin
-            y              <= 0;
-            buffercnt_read <= buffercnt_readnext;
-            buffercnt_last <= buffercnt_read;
-            
-            orientation <= orient_sel;
-            HShift      <= hshift_val + HShiftHFreqMode;
-            VShift      <= vshift_val - VShiftHFreqMode;
-            HShiftHFreqMode <= (yc_timing ? 4'd7 : 4'd0); // Screen Adjust when Y/C Selected
-            VShiftHFreqMode <= (yc_timing ? 4'd5 : 4'd0); // Screen Adjust when Y/C Selected
-            HDisplayHFreqMode <= (yc_timing ? 10'd451 : 10'd444); // Change Video Timing for for Y/C Composite Video 
-            VDisplayHFreqMode <= (yc_timing ? 9'd264 : 9'd269); // Change Video Timing for for Y/C Composite Video
-            if (en240p) begin
-               videomode = 3; // 320*204, 60Hz
-            end else begin
-               videomode = 0;
-               //if (orient_sel == 0) videomode = 0; // 160*102, 60Hz
-               //if (orient_sel == 1) videomode = 1; // 102*160, 60Hz
-               //if (orient_sel == 2) videomode = 2; // 102*160, 60Hz, 180 degree rotated
-            end
-         end
+      if (y >= 9'd269) begin
+        y              <= 0;
+        buffercnt_read <= buffercnt_readnext;
+        buffercnt_last <= buffercnt_read;
+        
+        orientation    <= orient_sel;
+        
+        if (en240p) begin
+           videomode = 3; // 320*204, 60Hz
+        end else begin
+           videomode = 0;
+           //if (orient_sel == 0) videomode = 0; // 160*102, 60Hz
+           //if (orient_sel == 1) videomode = 1; // 102*160, 60Hz
+           //if (orient_sel == 2) videomode = 2; // 102*160, 60Hz, 180 degree rotated
+        end
+      end
     end
   end
 end
