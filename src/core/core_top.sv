@@ -1002,9 +1002,10 @@ always @(posedge clk_sys) begin
             if (en240p) begin
                videomode = 3; // 320*204, 60Hz
             end else begin
-               if (orient_sel == 0) videomode = 0; // 160*102, 60Hz
-               if (orient_sel == 1) videomode = 1; // 102*160, 60Hz
-               if (orient_sel == 2) videomode = 2; // 102*160, 60Hz, 180 degree rotated
+               videomode = 0;
+               //if (orient_sel == 0) videomode = 0; // 160*102, 60Hz
+               //if (orient_sel == 1) videomode = 1; // 102*160, 60Hz
+               //if (orient_sel == 2) videomode = 2; // 102*160, 60Hz, 180 degree rotated
             end
          end
     end
@@ -1062,7 +1063,41 @@ assign video_rgb_clock_90 = clk_vid_90;
 assign video_de           = video_de_reg;
 assign video_hs           = video_hs_reg;
 assign video_vs           = video_vs_reg;
-assign video_rgb          = video_rgb_reg;
+//assign video_rgb          = video_rgb_reg;
+
+wire [7:0] lum;
+assign lum = (21 * video_rgb_reg[23:16] + 72 * video_rgb_reg[15:8] + 7 * video_rgb_reg[7:0]) / 100;
+
+always_comb begin
+  if(~video_de_reg) begin
+    if(en240p) begin
+      video_rgb[23:13] = 3;
+      video_rgb[12:3]  = 0;
+      video_rgb[2:0]   = 0;
+    end else begin
+      if(orient_sel == 1) begin
+        video_rgb[23:13] = 1;
+        video_rgb[12:3]  = 0;
+        video_rgb[2:0]   = 0;
+      end else if(orient_sel == 2) begin
+        video_rgb[23:13] = 2;
+        video_rgb[12:3]  = 0;
+        video_rgb[2:0]   = 0;
+      end else begin
+        video_rgb[23:13] = 0;
+        video_rgb[12:3]  = 0;
+        video_rgb[2:0]   = 0;
+      end
+    end
+
+  end else begin
+    if (bw_en) begin
+      video_rgb = {lum, lum, lum};
+    end else begin
+      video_rgb = video_rgb_reg;
+    end
+  end
+end
 
 ///////////////////////////// Fast Forward Latch /////////////////////////////////
 

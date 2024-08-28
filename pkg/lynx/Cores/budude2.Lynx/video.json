@@ -5,11 +5,36 @@
             {
                 "width": 160,
                 "height": 102,
-                "aspect_w": 1.57,
-                "aspect_h": 1,
+                "aspect_w": 1,
+                "aspect_h": 1.57,
+                "rotation": 0,
+                "mirror": 0
+            },
+            {
+                "width": 160,
+                "height": 102,
+                "aspect_w": 1,
+                "aspect_h": 1.57,
+                "rotation": 90,
+                "mirror": 0
+            },
+            {
+                "width": 160,
+                "height": 102,
+                "aspect_w": 1,
+                "aspect_h": 1.57,
+                "rotation": 270,
+                "mirror": 0
+            },
+            {
+                "width": 320,
+                "height": 204,
+                "aspect_w": 1,
+                "aspect_h": 1.57,
                 "rotation": 0,
                 "mirror": 0
             }
+
         ],
         "display_modes": [
             {

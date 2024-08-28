@@ -130,6 +130,17 @@
           { "name": "Vert",    "value": "0x0800" },
           { "name": "Vert180", "value": "0x1000" }
         ]
+      },
+      {
+        "name": "240p",
+        "id": 1011,
+        "type": "check",
+        "enabled": true,
+        "persist": true,
+        "address":    "0xF2000000",
+        "defaultval": 0,
+        "mask":       "0xFFDFFFFF",
+        "value":      "0x00200000"
       }
     ],
     "messages": []
