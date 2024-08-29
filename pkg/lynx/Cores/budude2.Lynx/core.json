@@ -6,9 +6,9 @@
       "shortname": "Lynx",
       "description": "Atari Lynx",
       "author": "budude2",
-      "url": "https://github.com/budude2/openfpga-GBC",
+      "url": "https://github.com/budude2/openfpga-AtariLynx",
       "version": "1.0",
-      "date_release": "2024-08-21"
+      "date_release": "2024-08-27"
     },
     "framework": {
       "target_product": "Analogue Pocket",
