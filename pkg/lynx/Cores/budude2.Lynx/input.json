@@ -17,16 +17,21 @@
           },
           {
             "id": 2,
-            "name": "Start",
-            "key": "pad_btn_start"
+            "name": "Option 1",
+            "key": "pad_btn_x"
           },
           {
             "id": 3,
-            "name": "Select",
-            "key": "pad_btn_select"
+            "name": "Option 2",
+            "key": "pad_btn_y"
           },
           {
             "id": 4,
+            "name": "Pause",
+            "key": "pad_btn_start"
+          },
+          {
+            "id": 5,
             "name": "Fastforward",
             "key": "pad_trig_r"
           }
