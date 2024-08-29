@@ -909,7 +909,7 @@ always @(posedge clk_sys) begin
          if(y == 120)     vbl <= 0;
          if(y >= 120+102) vbl <= 1;
       end else if (videomode == 3) begin
-         if(x == 320)                     hbl <= 1;
+         if(x == 320)     hbl <= 1;
          if(y == 40)      vbl <= 0;
          if(y >= 40+204)  vbl <= 1;
       end
@@ -990,6 +990,11 @@ wire [2:0] video_preset = {1'b0, videomode};
 
 wire de = ~(hbl || vbl);
 
+reg video_hs_d1;
+reg video_hs_d2;
+reg video_hs_d3;
+reg video_hs_d4;
+
 always_ff @(posedge clk_vid) begin : apfVideoOutput
     if(reset) begin
         video_rgb <= 24'h0;
@@ -1001,10 +1006,14 @@ always_ff @(posedge clk_vid) begin : apfVideoOutput
         de_last   <=  1'b0;
     end
     else begin
-        video_rgb <= 24'h0;
-        video_hs  <= ~hs_last && hs;
-        video_vs  <= ~vs_last && vs;
-        video_de  <= 1'b0;
+        video_rgb   <= 24'h0;
+        video_hs_d1 <= ~hs_last && hs;
+        video_hs_d2 <= video_hs_d1;
+        video_hs_d3 <= video_hs_d2;
+        video_hs_d4 <= video_hs_d3;
+        video_hs    <= video_hs_d4;
+        video_vs    <= ~vs_last && vs;
+        video_de    <= 1'b0;
         // Handle frame feature bits during VS pulse
         if(~vs_last && vs && EN_INTERLACED) begin
             video_rgb <= { 20'h0, ~field, field, interlaced, 1'h0 };
