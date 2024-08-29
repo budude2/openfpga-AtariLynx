@@ -664,7 +664,7 @@ wire reset = (~reset_n_s | external_reset_s | cart_download);
 
 reg paused;
 always_ff @(posedge clk_sys) begin
-   paused <= syncpaused; // no pause when rewind capture is on
+   paused <= syncpaused || osnotify_inmenu; // no pause when rewind capture is on
 end
 
 reg [8:0]  bios_wraddr;
