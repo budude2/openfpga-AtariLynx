@@ -32,16 +32,6 @@
         "value":      "0x00000002"
       },
       {
-        "name": "Enable FF Sound",
-        "id": 1003,
-        "type": "check",
-        "enabled": true,
-        "persist": true,
-        "address":    "0xF2000000",
-        "mask":       "0xFFFFFFFB",
-        "value":      "0x00000004"
-      },
-      {
         "name": "Enable FF",
         "id": 1004,
         "type": "check",
@@ -53,15 +43,14 @@
         "value":      "0x00000008"
       },
       {
-        "name": "Buff Video",
-        "id": 1005,
+        "name": "Enable FF Sound",
+        "id": 1003,
         "type": "check",
         "enabled": true,
         "persist": true,
         "address":    "0xF2000000",
-        "defaultval": 0,
-        "mask":       "0xFFFFFFEF",
-        "value":      "0x00000010"
+        "mask":       "0xFFFFFFFB",
+        "value":      "0x00000004"
       },
       {
         "name": "Speed Select",
@@ -78,6 +67,17 @@
           { "name": "160%", "value": "0x40" },
           { "name": "200%", "value": "0x60" }
         ]
+      },
+      {
+        "name": "Buffer Video",
+        "id": 1005,
+        "type": "check",
+        "enabled": true,
+        "persist": true,
+        "address":    "0xF2000000",
+        "defaultval": 0,
+        "mask":       "0xFFFFFFEF",
+        "value":      "0x00000010"
       },
       {
         "name": "Flickerblend",
