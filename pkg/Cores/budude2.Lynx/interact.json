@@ -116,8 +116,7 @@
         "defaultval": 1,
         "options": [
           { "name": "Horz",    "value": "0x0000" },
-          { "name": "Vert",    "value": "0x0800" },
-          { "name": "Vert180", "value": "0x1000" }
+          { "name": "Vert",    "value": "0x0800" }
         ]
       },
       {
