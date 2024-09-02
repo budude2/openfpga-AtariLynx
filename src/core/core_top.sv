@@ -245,7 +245,6 @@ assign cart_tran_pin31_dir     = 1'b0;  // input
 
 assign port_tran_sd     = 1'bz;
 assign port_tran_sd_dir = 1'b0;     // SD is input and not used
-assign video_skip       = 1'b0;
 
 // tie off the rest of the pins we are not using
 assign cram0_a     = 'h0;
@@ -975,66 +974,43 @@ always @(posedge clk_sys) begin
   end
 end
 
-//! ------------------------------------------------------------------------
-//! Sync Video Output
-//! ------------------------------------------------------------------------
-reg EN_INTERLACED = 0;
-
-//--------------------------------------------------------------------------
-// APF Video Output
-//--------------------------------------------------------------------------
-wire       field,   interlaced;
-logic      hs_last, vs_last, de_last; // Sync/DE Edge Detection
-
-wire [2:0] video_preset = {1'b0, videomode};
-
-wire de = ~(hbl || vbl);
-
-reg video_hs_d1;
-reg video_hs_d2;
-reg video_hs_d3;
-reg video_hs_d4;
-
-always_ff @(posedge clk_vid) begin : apfVideoOutput
-    if(reset) begin
-        video_rgb <= 24'h0;
-        video_hs  <=  1'b0;
-        video_vs  <=  1'b0;
-        video_de  <=  1'b0;
-        hs_last   <=  1'b0;
-        vs_last   <=  1'b0;
-        de_last   <=  1'b0;
-    end
-    else begin
-        video_rgb   <= 24'h0;
-        video_hs_d1 <= ~hs_last && hs;
-        video_hs_d2 <= video_hs_d1;
-        video_hs_d3 <= video_hs_d2;
-        video_hs_d4 <= video_hs_d3;
-        video_hs    <= video_hs_d4;
-        video_vs    <= ~vs_last && vs;
-        video_de    <= 1'b0;
-        // Handle frame feature bits during VS pulse
-        if(~vs_last && vs && EN_INTERLACED) begin
-            video_rgb <= { 20'h0, ~field, field, interlaced, 1'h0 };
-        end
-        else if(de) begin
-            video_de  <= 1'b1;
-            video_rgb <= { r, g, b };
-        end
-        // Handle end-of-line bits after the DE falling edge
-        else if(de_last && ~de) begin
-            video_rgb <= { 8'h0, video_preset, 13'h0 };
-        end
-        // Update last state registers
-        hs_last <= hs;
-        vs_last <= vs;
-        de_last <= de;
-    end
-end
-
-assign video_rgb_clock    = clk_vid;
-assign video_rgb_clock_90 = clk_vid_90;
+video_mixer #(
+    .RW                       ( 8                        ), // [p]
+    .GW                       ( 8                        ), // [p]
+    .BW                       ( 8                        ), // [p]
+    .EN_INTERLACED            ( 0                        )  // [p]
+) u_pocket_video_mixer (
+    // Clocks
+    .clk_sys                  ( clk_sys                  ), // [i]
+    .clk_vid                  ( clk_vid                  ), // [i]
+    .clk_vid_90deg            ( clk_vid_90               ), // [i]
+    .reset                    ( reset                    ), // [i]
+    // DIP Switch for Configuration
+    .video_sw                 (                          ), // [i]
+    // Display Controls
+    .grayscale_en             ( bw_en                    ), // [i]
+    .blackout_en              ( 0                        ), // [i]
+    .video_preset             ( {1'b0, videomode}        ), // [i]
+    // Input Video from Core
+    .core_r                   ( r                        ), // [i]
+    .core_g                   ( g                        ), // [i]
+    .core_b                   ( b                        ), // [i]
+    .core_hs                  ( hs                       ), // [i]
+    .core_vs                  ( vs                       ), // [i]
+    .core_hb                  ( hbl                      ), // [i]
+    .core_vb                  ( vbl                      ), // [i]
+     // Interlaced Video Controls
+    .field                    ( 0                        ), // [i]
+    .interlaced               ( 0                        ), // [i]
+    // Output to Display
+    .video_rgb                ( video_rgb                ), // [o]
+    .video_hs                 ( video_hs                 ), // [o]
+    .video_vs                 ( video_vs                 ), // [o]
+    .video_de                 ( video_de                 ), // [o]
+    .video_skip               ( video_skip               ), // [o]
+    .video_rgb_clock          ( video_rgb_clock          ), // [o]
+    .video_rgb_clock_90       ( video_rgb_clock_90       )  // [o]
+);
 
 ///////////////////////////// Fast Forward Latch /////////////////////////////////
 
