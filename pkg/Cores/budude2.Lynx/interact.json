@@ -11,6 +11,21 @@
         "value": 1
       },
       {
+        "name": "Orientation",
+        "id": 1010,
+        "type": "list",
+        "enabled": true,
+        "persist": true,
+        "address":    "0xF2000000",
+        "mask":       "0xFFFFE7FF",
+        "defaultval": 0,
+        "options": [
+          { "name": "Horz",    "value": "0x0000" },
+          { "name": "Vert",    "value": "0x0800" },
+          { "name": "Vert180", "value": "0x1000" }
+        ]
+      },
+      {
         "name": "Turbo",
         "id": 1001,
         "type": "check",
@@ -60,7 +75,7 @@
         "persist": true,
         "address":    "0xF2000000",
         "mask":       "0xFFFFFF9F",
-        "defaultval": 1,
+        "defaultval": 0,
         "options": [
           { "name": "400%", "value": "0x00" },
           { "name": "133%", "value": "0x20" },
@@ -87,7 +102,7 @@
         "persist": true,
         "address":    "0xF2000000",
         "mask":       "0xFFFFFE7F",
-        "defaultval": 1,
+        "defaultval": 0,
         "options": [
           { "name": "Off",      "value": "0x00" },
           { "name": "2 Frames", "value": "0x80" },
@@ -104,20 +119,6 @@
         "defaultval": 0,
         "mask":       "0xFFFFFDFF",
         "value":      "0x00000200"
-      },
-      {
-        "name": "Orientation",
-        "id": 1010,
-        "type": "list",
-        "enabled": true,
-        "persist": true,
-        "address":    "0xF2000000",
-        "mask":       "0xFFFFE7FF",
-        "defaultval": 1,
-        "options": [
-          { "name": "Horz",    "value": "0x0000" },
-          { "name": "Vert",    "value": "0x0800" }
-        ]
       },
       {
         "name": "240p",
