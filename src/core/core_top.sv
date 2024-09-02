@@ -687,6 +687,32 @@ always @(posedge clk_sys) begin
   end
 end
 
+wire JoyUP, JoyDown, JoyLeft, JoyRight;
+
+always_comb begin
+  if(en240p) begin
+    JoyUP     = cont1_key_s[0];
+    JoyDown   = cont1_key_s[1];
+    JoyLeft   = cont1_key_s[2];
+    JoyRight  = cont1_key_s[3];
+  end else if(orientation == 2) begin
+    JoyUP     = cont1_key_s[2];
+    JoyDown   = cont1_key_s[3];
+    JoyLeft   = cont1_key_s[1];
+    JoyRight  = cont1_key_s[0];
+  end else if(orientation == 1) begin
+    JoyUP     = cont1_key_s[3];
+    JoyDown   = cont1_key_s[2];
+    JoyLeft   = cont1_key_s[0];
+    JoyRight  = cont1_key_s[1];
+  end else begin
+    JoyUP     = cont1_key_s[0];
+    JoyDown   = cont1_key_s[1];
+    JoyLeft   = cont1_key_s[2];
+    JoyRight  = cont1_key_s[3];
+  end
+end
+
 LynxTop LynxTop (
   .clk              ( clk_sys),
   .reset_in         ( reset  ),
@@ -724,10 +750,10 @@ LynxTop LynxTop (
   .fpsoverlay_on    ( fps_overlay   ),
    
   // joystick
-  .JoyUP            ((orientation == 2) ? cont1_key_s[2] : (orientation == 1) ? cont1_key_s[3] : cont1_key_s[0]),
-  .JoyDown          ((orientation == 2) ? cont1_key_s[3] : (orientation == 1) ? cont1_key_s[2] : cont1_key_s[1]),
-  .JoyLeft          ((orientation == 2) ? cont1_key_s[1] : (orientation == 1) ? cont1_key_s[0] : cont1_key_s[2]),
-  .JoyRight         ((orientation == 2) ? cont1_key_s[0] : (orientation == 1) ? cont1_key_s[1] : cont1_key_s[3]),
+  .JoyUP            (JoyUP),
+  .JoyDown          (JoyDown),
+  .JoyLeft          (JoyLeft),
+  .JoyRight         (JoyRight),
   .Option1          (cont1_key_s[6]),
   .Option2          (cont1_key_s[7]),
   .KeyB             (cont1_key_s[5]),
@@ -954,12 +980,12 @@ always @(posedge clk_sys) begin
     if(x == 10'd444) begin  // (445x270 for standard video, 452x265 for improved Analog Timing for Composite)
       x <= 0;
       if (~&y) y <= y + 1'd1;
+
       if (y >= 9'd269) begin
         y              <= 0;
         buffercnt_read <= buffercnt_readnext;
         buffercnt_last <= buffercnt_read;
-        
-        orientation     <= orient_sel;
+        orientation    <= orient_sel;
         
         if (en240p) begin
            videomode = 3; // 320*204, 60Hz
