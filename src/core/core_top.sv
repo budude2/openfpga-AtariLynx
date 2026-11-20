@@ -717,6 +717,7 @@ LynxTop LynxTop (
   .clk              ( clk_sys),
   .reset_in         ( reset  ),
   .pause_in         ( paused ),
+  .audio_ce_independent (sync60hz && !osnotify_inmenu),
    
   // rom
   .rom_addr         ( rom_addr ),
@@ -738,6 +739,7 @@ LynxTop LynxTop (
   .pixel_out_addr   (pixel_addr),        // integer range 0 to 16319; -- address for framebuffer
   .pixel_out_data   (pixel_data),        // RGB data for framebuffer
   .pixel_out_we     (pixel_we),          // new pixel for framebuffer
+  .mikey_frame_end  (mikey_frame_end),   // native Mikey vertical timing
       
   // audio 
   .audio_l          (Lynx_AUDIO_L),
@@ -813,6 +815,7 @@ audio_mixer #(
 wire [13:0] pixel_addr;
 wire [11:0] pixel_data;
 wire        pixel_we;
+wire        mikey_frame_end;
 
 wire buffervideo = buff_vid | flickerblend[1]; // OSD option for buffer or flickerblend on
 
@@ -823,7 +826,108 @@ reg [1:0] buffercnt_write    = 0;
 reg [1:0] buffercnt_readnext = 0;
 reg [1:0] buffercnt_read     = 0;
 reg [1:0] buffercnt_last     = 0;
-reg       syncpaused         = 0;
+// Experimental bounded phase lock: retain the original DMA phase anchor,
+// but limit the maximum stall to 0.5 ms at the 64 MHz system clock.
+// This is a diagnostic tradeoff, NOT a guaranteed zero-jitter solution.
+localparam [15:0] SYNC_MAX_HOLD = 16'd32000;
+// Native VRR is a *video-only* adaptation. The source clock is never retimed.
+// A 445 x 9 clk_sys line lasts 4005 cycles. 263..340 lines => 60.76..46.99 Hz.
+localparam [9:0] VRR_MIN_LINES = 10'd263;
+localparam [9:0] VRR_MAX_LINES = 10'd340;
+localparam [9:0] FIXED_LINES   = 10'd270;
+reg [9:0] mikey_lines = FIXED_LINES;
+reg [9:0] measured_lines = FIXED_LINES;
+reg       mikey_end_d = 1'b0;
+reg       mikey_seen = 1'b0;
+reg       native_vrr = 1'b0;
+wire      mikey_end_rise = mikey_frame_end && !mikey_end_d;
+wire      output_line_end = ce_pix && (x == 9'd444);
+reg [9:0] video_total_lines = FIXED_LINES;
+// v2.8 experiment: move the DMA phase target in the opposite direction
+// from v2.7 (70), following the observed lower tearing position.
+// The phase reference is an experimental value, NOT a proven safe margin.
+// No clocks, audio, buffer settings or pause logic are changed.
+localparam [9:0] DMA_PHASE_TARGET = 10'd150;
+reg [9:0] dma_end_y = 10'd0;
+reg       dma_end_seen = 1'b0;
+wire signed [11:0] phase_raw = $signed({2'b00, dma_end_y}) - $signed({2'b00, DMA_PHASE_TARGET});
+wire signed [11:0] phase_span = $signed({2'b00, video_total_lines});
+wire signed [11:0] phase_error = (phase_raw > (phase_span >>> 1)) ? (phase_raw - phase_span) :
+                                 (phase_raw < -(phase_span >>> 1)) ? (phase_raw + phase_span) : phase_raw;
+wire signed [11:0] phase_correction = phase_error > 12'sd6 ? 12'sd2 :
+                                       phase_error > 12'sd2 ? 12'sd1 :
+                                       phase_error < -12'sd6 ? -12'sd2 :
+                                       phase_error < -12'sd2 ? -12'sd1 : 12'sd0;
+wire signed [11:0] candidate_lines = $signed({2'b00, mikey_lines}) + phase_correction;
+wire [9:0] corrected_lines = candidate_lines < 12'sd263 ? VRR_MIN_LINES :
+                             candidate_lines > 12'sd340 ? VRR_MAX_LINES : candidate_lines[9:0];
+
+// Measurements are updated at each original Mikey frame, not on a 1 s poll.
+// Cap at 60-ish for high-rate games; for 47..61 Hz match native vertical period.
+// Timeout prevents a stuck timer from leaving video in an invalid mode.
+always @(posedge clk_sys) begin
+   mikey_end_d <= mikey_frame_end;
+   if (reset || !sync60hz) begin
+      mikey_lines       <= 0;
+      measured_lines    <= FIXED_LINES;
+      video_total_lines <= FIXED_LINES;
+      mikey_seen        <= 0;
+      native_vrr        <= 0;
+      dma_end_y         <= 0;
+      dma_end_seen      <= 0;
+   end else begin
+      if (dma_end_pulse) begin
+         dma_end_y    <= {1'b0, y};
+         dma_end_seen <= 1'b1;
+      end
+      if (output_line_end && mikey_lines < 10'd600)
+         mikey_lines <= mikey_lines + 10'd1;
+      if (mikey_end_rise) begin
+         // Use only complete measurements (the first pulse starts the counter).
+         if (mikey_seen) begin
+            if (mikey_lines >= VRR_MIN_LINES && mikey_lines <= VRR_MAX_LINES) begin
+               measured_lines <= mikey_lines;
+               native_vrr <= 1;
+               video_total_lines <= dma_end_seen ? corrected_lines : mikey_lines;
+            end else begin
+               measured_lines <= FIXED_LINES;
+               native_vrr <= 0;
+               video_total_lines <= FIXED_LINES;
+            end
+         end
+         mikey_lines <= 0;
+         mikey_seen <= 1;
+      end else if (mikey_lines >= 10'd600) begin
+         video_total_lines <= FIXED_LINES;
+         native_vrr <= 0;
+         mikey_seen <= 0;
+      end
+   end
+end
+
+reg       syncpaused = 1'b0;
+reg [15:0] sync_hold_count = 16'd0;
+reg       dma_end_prev = 1'b0;
+wire      dma_end_now = pixel_we && (pixel_addr == 14'd16319);
+wire      dma_end_pulse = dma_end_now && !dma_end_prev;
+
+always @(posedge clk_sys) begin
+   dma_end_prev <= dma_end_now;
+   if (reset || !sync60hz || native_vrr || y > 9'd150) begin
+      syncpaused <= 1'b0;
+      sync_hold_count <= 16'd0;
+   end else if (syncpaused) begin
+      if (sync_hold_count >= SYNC_MAX_HOLD - 16'd1) begin
+         syncpaused <= 1'b0;
+         sync_hold_count <= 16'd0;
+      end else begin
+         sync_hold_count <= sync_hold_count + 16'd1;
+      end
+   end else if (dma_end_pulse) begin
+      syncpaused <= 1'b1;
+      sync_hold_count <= 16'd0;
+   end
+end
 
 always @(posedge clk_sys) begin
    if (buffervideo) begin
@@ -846,11 +950,6 @@ always @(posedge clk_sys) begin
       if (buffercnt_write == 2) vram3[pixel_addr] <= pixel_data;
    end
    
-   if (y > 150) begin
-      syncpaused <= 0;
-   end else if (sync60hz && pixel_we && pixel_addr == 16319) begin
-      syncpaused <= 1;
-   end
 
 end
 
@@ -981,7 +1080,7 @@ always @(posedge clk_sys) begin
       x <= 0;
       if (~&y) y <= y + 1'd1;
 
-      if (y >= 9'd269) begin
+      if (y >= video_total_lines - 10'd1) begin
         y              <= 0;
         buffercnt_read <= buffercnt_readnext;
         buffercnt_last <= buffercnt_read;
